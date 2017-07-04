@@ -107,11 +107,12 @@ single_word_cloud <- function(books_tidied, remove_words = NULL, number_of_words
     with(wordcloud(word, n, max.words = number_of_words))
 }
 
+
 peter <- gather_gutenberg_books(16, "Peter Pan")
 peter <- single_word_unnested(peter)
 single_word_review(peter, 25)
-single_word_sentiment_cleaning(peter, words_shown = 20, remove_words = c("darling", "pan", "lost"))
-single_word_sentiment(peter, remove_words = c("darling", "pan", "lost"))
+single_word_sentiment_cleaning(peter, words_shown = 20, remove_words = c("darling", "pan", "lost", "cry"))
+single_word_sentiment(peter, remove_words = c("darling", "pan", "lost", "cry"))
 single_word_cloud(peter)
 
 bible <- gather_gutenberg_books(10, "King James Version of Bible")
@@ -156,3 +157,10 @@ oz %>%
   filter(!word %in% c("cowardly", "wicked", "witch", "magic")) %>%
   acast(word ~ sentiment, value.var = "n", fill = 0) %>%
   comparison.cloud(colors = c("red", "blue"), max.words = 50)
+
+anne <- gather_gutenberg_books(c(47, 45, 51, 544, 5343, 3796), c("Anne of Avonlea", "Anne of Green Gables", "Anne of the Island", "Anne's House of Dreams", "Rainbow Valley", "Rilla of Ingleside"))
+anne <- single_word_unnested(anne)
+single_word_review(anne)
+single_word_sentiment_cleaning(anne, remove_words = c("miss", "dick"))
+single_word_sentiment(anne, remove_words = c("miss", "dick"))
+single_word_cloud(anne, number_of_words = 250, remove_words = c("miss"))
