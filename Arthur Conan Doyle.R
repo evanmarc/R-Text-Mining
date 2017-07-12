@@ -19,7 +19,7 @@ sherlock <- c(
 
 sherlock_books <- data.frame("gutenberg_id" = c(48320, 834, 108, 2350, 244, 2097, 2852, 3289),"book" = c("Adventures of Sherlock Holmes","The Memoirs of Sherlock Holmes","The Return of Sherlock Holmes","His Last Bow","A Study in Scarlet","The Sign of the Four","The Hound of the Baskervilles","The Valley of Fear"))
 
-#doyle <- gutenberg_download(sherlock)
+doyle <- gutenberg_download(sherlock)
 
 doyle <- left_join(doyle, sherlock_books, "gutenberg_id")
 
