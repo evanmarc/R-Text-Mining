@@ -37,6 +37,11 @@ single_word_cloud(kids)
 oz <- gather_gutenberg_books(
   c(55, 55, 420, 419, 517, 486, 485, 955, 957, 956, 25581, 24459, 30852, 961),
   c("The Wonderful Wizard of Oz", "The Marvelous Land of Oz", "Dorothy and the Wizard", "The Magic of Oz", "The Emerald City of Oz", "Ozma of Oz", "The Road to Oz", "The Patchwork Girl of Oz", "The Scarecrow of Oz", "Tik-Tok of Oz", "Rinkitink in Oz", "The Lost Princess of Oz", "The Tin Woodman of Oz", "Glinda of Oz"))
+
+class(oz)
+
+saveRDS(oz, "Data/Oz.RData")
+
 single_word_review(oz, show_top_words = 10, number_of_columns = 3)
 single_word_sentiment_cleaning(oz, remove_words = c("cowardly", "wicked", "witch", "magic"), words_shown = 5, number_of_columns = 3)
 single_word_sentiment(oz, number_of_columns = 3, remove_words = c("cowardly", "wicked", "witch", "magic"))

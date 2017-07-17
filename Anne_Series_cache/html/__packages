@@ -1,0 +1,16 @@
+base
+tidyverse
+ggplot2
+tibble
+tidyr
+readr
+purrr
+dplyr
+rmarkdown
+RColorBrewer
+wordcloud
+reshape2
+gutenbergr
+stringr
+tidytext
+bindrcpp

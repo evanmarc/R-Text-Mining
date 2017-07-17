@@ -1,0 +1,54 @@
+---
+title: "Anne of Green Gables +"
+subtitle: "Project Gutenberg Text Mining"
+output: html_document
+---
+
+```{r setup, include = F}
+knitr::opts_chunk$set(fig.width = 10, fig.height = 8, fig.retina = 2)
+library(tidyverse)
+library(rmarkdown)
+source("R/Single_Word_Analysis.R")
+```
+
+# Text Mining of anne Series
+
+I originally downloaded the anne series of books from Project Gutenberg. However, I didn't want to keep downloading it everything I made a minor change to this file. So I'm including my download code below, but loading the data from a saved file.
+
+```{r download_anne, cache = T}
+anne <- single_word_unnested(gather_gutenberg_books(
+  c(47, 45, 51, 544, 5343, 3796), 
+  c("Anne of Avonlea", "Anne of Green Gables", "Anne of the Island", "Anne's House of Dreams", "Rainbow Valley", "Rilla of Ingleside")))
+```
+
+Here is the code loading the anne data saved in the Data folder.
+```{r load_anne_from_file, cache = T, eval = F}
+anne <- readRDS("Data/anne.RData")
+anne <- single_word_unnested(anne)
+```
+
+This collection of charts shows the most common words in the anne Series. It is broken up into two sets of charts. The first chart shows the tops words in all the books, followed by the top words in each individual book. There is also a wordcloud, but I've turned that off for now.
+```{r show_top_words_one_chart, fig.height = 6}
+single_word_review_one_chart(anne, show_top_words = 25)
+```
+
+```{r show_top_10_words}
+single_word_review(anne, show_top_words = 10, number_of_columns = 3)
+```
+
+```{r cloud, eval = FALSE}
+single_word_cloud(anne)
+```
+
+
+```{r sentimental_analysis_cleaning}
+remove_anne_words = c("miss", "dick")
+
+single_word_sentiment_cleaning(anne, remove_words = remove_anne_words, words_shown = 15, number_of_columns = 3)
+```
+
+```{r sentimental_analysis, fig.height = 10}
+single_word_sentiment(anne, number_of_columns = 3, remove_words = remove_anne_words)
+```
+
+

@@ -54,6 +54,30 @@ single_word_review <- function(books_tidied, show_top_words = 15, number_of_colu
   return(books_charted)
 }
 
+single_word_review_one_chart <- function(books_tidied, show_top_words = 15) {
+  prepare_for_sort <- books_tidied %>%
+    count(word)
+  
+  prepare_for_ggplot <- prepare_for_sort %>%
+    top_n(show_top_words) %>%
+    arrange(n) %>%
+    mutate(order = row_number())
+  
+  books_charted <- ggplot(prepare_for_ggplot, aes(order, n)) +
+    geom_col(show.legend = F) +
+    xlab("Words") +
+    ylab("Occurrances") +
+    scale_x_continuous(
+      breaks = prepare_for_ggplot$order,
+      labels = prepare_for_ggplot$word,
+      expand = c(0,0)
+    ) +
+    coord_flip()
+  
+  
+  return(books_charted)
+}
+
 single_word_sentiment_cleaning <- function(books_tidied, sentiment_type = "bing", remove_words = NULL, words_shown = 15, number_of_columns = 2) {
   book_sentiment <- books_tidied %>%
     inner_join(get_sentiments(sentiment_type)) %>%
@@ -95,7 +119,7 @@ single_word_sentiment <- function(books_tidied, sentiment_type = "bing", remove_
   books_sentiment %>% 
     ggplot(aes(index, sentiment, fill = book)) +
     geom_col(show.legend = F) +
-    facet_wrap(~book, ncol = number_of_columns, scales = "free_x")
+    facet_wrap(~book, ncol = number_of_columns)
 }
 
 single_word_cloud <- function(books_tidied, remove_words = NULL, number_of_words = 100) {

@@ -1,0 +1,54 @@
+---
+title: "Mark Twain"
+subtitle: "Project Gutenberg Text Mining"
+output: html_document
+---
+
+```{r setup, include = F}
+knitr::opts_chunk$set(fig.width = 10, fig.height = 8, fig.retina = 2)
+library(tidyverse)
+library(rmarkdown)
+source("R/Single_Word_Analysis.R")
+```
+
+# Text Mining of markTwain Series
+
+I originally downloaded the markTwain series of books from Project Gutenberg. However, I didn't want to keep downloading it everything I made a minor change to this file. So I'm including my download code below, but loading the data from a saved file.
+
+```{r download_markTwain, cache = T}
+markTwain <- single_word_unnested(gather_gutenberg_books(
+  c(74), 
+  c("The Adventures of Tom Sawyer")))
+```
+
+Here is the code loading the markTwain data saved in the Data folder.
+```{r load_markTwain_from_file, cache = T, eval = F}
+markTwain <- readRDS("Data/markTwain.RData")
+markTwain <- single_word_unnested(markTwain)
+```
+
+This collection of charts shows the most common words in the markTwain Series. It is broken up into two sets of charts. The first chart shows the tops words in all the books, followed by the top words in each individual book. There is also a wordcloud, but I've turned that off for now.
+```{r show_top_words_one_chart, fig.height = 6}
+single_word_review_one_chart(markTwain, show_top_words = 25)
+```
+
+```{r show_top_10_words}
+single_word_review(markTwain, show_top_words = 10, number_of_columns = 3)
+```
+
+```{r cloud, eval = FALSE}
+single_word_cloud(markTwain)
+```
+
+
+```{r sentimental_analysis_cleaning}
+remove_markTwain_words = c("miss", "dick")
+
+single_word_sentiment_cleaning(markTwain, remove_words = remove_markTwain_words, words_shown = 15, number_of_columns = 3)
+```
+
+```{r sentimental_analysis, fig.height = 10}
+single_word_sentiment(markTwain, number_of_columns = 3, remove_words = remove_markTwain_words)
+```
+
+
