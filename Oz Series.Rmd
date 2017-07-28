@@ -1,38 +1,48 @@
 ---
-title: "Oz"
-subtitle: "Project Gutenberg Text Mining"
+title: "Text Mining The Wonderful Wizard of Oz Series"
 output: html_document
 ---
 
-```{r setup, include = F}
+```{r setup, include = FALSE}
 knitr::opts_chunk$set(fig.width = 10, fig.height = 8, fig.retina = 2)
 library(tidyverse)
 library(rmarkdown)
+library(svglite)
 source("R/Single_Word_Analysis.R")
 ```
 
 # Text Mining of Oz Series
 
-I originally downloaded the Oz series of books from Project Gutenberg. However, I didn't want to keep downloading it everything I made a minor change to this file. So I'm including my download code below, but loading the data from a saved file.
+A couple weeks ago I came across [Text Mining with R](http://tidytextmining.com) by Julia Silge and David Robinson. It is a great book that highlights some of the tools to perform basic textual analysis on any document. While working through the book, I decided to try to apply the principals to [_The Wonderful Wizard of Oz_](https://en.wikipedia.org/wiki/List_of_Oz_books) series.
 
-```{r download_oz, eval = FALSE}
-oz <- single_word_unnested(gather_gutenberg_books(
+Here is a little background about the series from [Wikipedia](https://en.wikipedia.org/wiki/List_of_Oz_books):
+
+> The Oz books form a book series that begins with The Wonderful Wizard of Oz (1900) and relate the fictional history of the Land of Oz. Oz was created by author L. Frank Baum, who went on to write fourteen full-length Oz books. All of the Baum written books are in the public domain in the United States. Even while he was alive, Baum was styled as "the Royal Historian of Oz" to emphasize the concept that Oz is an actual place. The illusion created was that characters such as Dorothy and Princess Ozma related their adventures in Oz to Baum themselves, by means of wireless telegraph.
+
+I download all the books from Gutenberg Project. The function `gather_gutenberg_books()` uses the gutenbergr package to download the books by ID number. A simple left join combines the book text, ID, and book name into one data set, Oz.
+
+```{r download_oz, cache = TRUE}
+oz <- gather_gutenberg_books(
   c(55, 55, 420, 419, 517, 486, 485, 955, 957, 956, 25581, 24459, 30852, 961),
-  c("The Wonderful Wizard of Oz", "The Marvelous Land of Oz", "Dorothy and the Wizard", "The Magic of Oz", "The Emerald City of Oz", "Ozma of Oz", "The Road to Oz", "The Patchwork Girl of Oz", "The Scarecrow of Oz", "Tik-Tok of Oz", "Rinkitink in Oz", "The Lost Princess of Oz", "The Tin Woodman of Oz", "Glinda of Oz")))
+  c("The Wonderful Wizard of Oz", "The Marvelous Land of Oz", "Dorothy and the Wizard", "The Magic of Oz", "The Emerald City of Oz", "Ozma of Oz", "The Road to Oz", "The Patchwork Girl of Oz", "The Scarecrow of Oz", "Tik-Tok of Oz", "Rinkitink in Oz", "The Lost Princess of Oz", "The Tin Woodman of Oz", "Glinda of Oz"))
 ```
 
-Here is the code loading the Oz data saved in the Data folder.
-```{r load_oz_from_file, cache = T}
-oz <- readRDS("Data/Oz.RData")
-oz <- single_word_unnested(oz)
+`single_word_unnested_all_words` tidies the book and keeps all the words.
+
+```{r unnest document}
+oz1 <- single_word_unnested_all_words(oz)
+oz2 <- single_word_unnested_stopwords(oz)
+
+oz %>% paged_table()
 ```
 
 This collection of charts shows the most common words in the Oz Series. It is broken up into two sets of charts. The first chart shows the tops words in all the books, followed by the top words in each individual book. There is also a wordcloud, but I've turned that off for now.
-```{r show_top_words_one_chart, fig.height = 6}
-single_word_review_one_chart(oz, show_top_words = 25)
+```{r "Oz Series, top words", fig.height = 6, echo = FALSE, fig.keep = TRUE, message = FALSE}
+
+single_word_review_one_chart(oz2, show_top_words = 25, chart_title = "Top Words in Oz Series", chart_caption = "http://www.marcusbevans.com") + theme_bw()
 ```
 
-```{r show_top_10_words}
+```{r show_top_10_words, eval = FALSE}
 single_word_review(oz, show_top_words = 10, number_of_columns = 3)
 ```
 
@@ -41,13 +51,13 @@ single_word_cloud(oz)
 ```
 
 
-```{r sentimental_analysis_cleaning}
+```{r sentimental_analysis_cleaning, eval = FALSE}
 remove_oz_words = c("cowardly", "wicked", "witch", "magic", "buggy")
 
 single_word_sentiment_cleaning(oz, remove_words = remove_oz_words, words_shown = 5, number_of_columns = 3)
 ```
 
-```{r sentimental_analysis, fig.height = 10}
+```{r sentimental_analysis, fig.height = 10, eval = FALSE}
 single_word_sentiment(oz, number_of_columns = 3, remove_words = remove_oz_words)
 ```
 

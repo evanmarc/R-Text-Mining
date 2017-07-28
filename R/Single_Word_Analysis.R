@@ -4,6 +4,8 @@ library(reshape2)
 library(gutenbergr)
 library(stringr)
 library(tidytext)
+library(extrafont)
+library(RColorBrewer)
 
 gather_gutenberg_books <- function(gutenberg_id, book_names) {
   text_from_books <- gutenberg_download(gutenberg_id)
@@ -13,7 +15,28 @@ gather_gutenberg_books <- function(gutenberg_id, book_names) {
   return(gutenberg_books)
 }
 
-single_word_unnested <- function(gutenberg_books) {
+single_word_unnested_all_words <- function(gutenberg_books) {
+  line_number_added <- gutenberg_books %>%
+    group_by(book) %>%
+    mutate(linenumber = row_number(),
+           chapter = cumsum(str_detect(text, regex("^chapter [\\divxlc]", ignore_case = T)))) %>%
+    ungroup()
+  
+  books_tidied <- line_number_added %>%
+    unnest_tokens(word, text) %>%
+    count(book, linenumber, chapter, word, sort = TRUE) %>%
+    ungroup()
+  
+  total_words <- books_tidied %>%
+    group_by(book) %>%
+    summarise(total = sum(n))
+  
+  book_words <- left_join(books_tidied, total_words)
+  
+  return(book_words)
+}
+
+single_word_unnested_stopwords <- function(gutenberg_books) {
   line_number_added <- gutenberg_books %>%
     group_by(book) %>%
     mutate(linenumber = row_number(),
@@ -27,7 +50,7 @@ single_word_unnested <- function(gutenberg_books) {
   return(books_tidied)
 }
 
-single_word_review <- function(books_tidied, show_top_words = 15, number_of_columns = 2) {
+single_word_review <- function(books_tidied, show_top_words = 15, chart_title = NULL, chart_caption = NULL, number_of_columns = 2) {
   prepare_for_sort <- books_tidied %>%
     group_by(book) %>%
     count(word)
@@ -39,22 +62,22 @@ single_word_review <- function(books_tidied, show_top_words = 15, number_of_colu
     arrange(book, n) %>%
     mutate(order = row_number())
   
-  books_charted <- ggplot(prepare_for_ggplot, aes(order, n)) +
+  books_charted <- ggplot(prepare_for_ggplot, aes(order, n, fill = book)) +
     geom_col(show.legend = F) +
-    xlab("Words") +
-    ylab("Occurrances") +
     facet_wrap(~ book, ncol = number_of_columns, scales = "free_y") +
     scale_x_continuous(
       breaks = prepare_for_ggplot$order,
       labels = prepare_for_ggplot$word,
       expand = c(0,0)
     ) +
-    coord_flip()
+    coord_flip() +
+    labs(title = chart_title, caption = chart_caption, y = "Total Occurances", x = "Words")
   
   return(books_charted)
 }
 
-single_word_review_one_chart <- function(books_tidied, show_top_words = 15) {
+single_word_review_one_chart <- function(books_tidied, show_top_words = 15, chart_title = NULL, chart_caption = NULL) {
+  
   prepare_for_sort <- books_tidied %>%
     count(word)
   
@@ -63,16 +86,15 @@ single_word_review_one_chart <- function(books_tidied, show_top_words = 15) {
     arrange(n) %>%
     mutate(order = row_number())
   
-  books_charted <- ggplot(prepare_for_ggplot, aes(order, n)) +
+  books_charted <- ggplot(prepare_for_ggplot, aes(order, n, fill = "blue`")) +
     geom_col(show.legend = F) +
-    xlab("Words") +
-    ylab("Occurrances") +
     scale_x_continuous(
       breaks = prepare_for_ggplot$order,
       labels = prepare_for_ggplot$word,
       expand = c(0,0)
     ) +
-    coord_flip()
+    coord_flip() +
+    labs(title = chart_title, caption = chart_caption, y = "Total Occurances", x = "Words")
   
   
   return(books_charted)
@@ -108,7 +130,7 @@ single_word_sentiment_cleaning <- function(books_tidied, sentiment_type = "bing"
   return(top_words)
 }
 
-single_word_sentiment <- function(books_tidied, sentiment_type = "bing", remove_words = NULL, line_count = 80, number_of_columns = 2) {
+single_word_sentiment <- function(books_tidied, sentiment_type = "bing", remove_words = NULL, line_count = 40, number_of_columns = 2, book_name = NULL) {
   books_sentiment <- books_tidied %>%
     inner_join(get_sentiments("bing")) %>%
     filter(!word %in% c(remove_words)) %>%
@@ -119,12 +141,13 @@ single_word_sentiment <- function(books_tidied, sentiment_type = "bing", remove_
   books_sentiment %>% 
     ggplot(aes(index, sentiment, fill = book)) +
     geom_col(show.legend = F) +
-    facet_wrap(~book, ncol = number_of_columns)
+    facet_wrap(~book, ncol = number_of_columns) +
+    labs(title = paste0(book_name, "Sentament Analysis"), x = "Approximate Page Number", y = "Number of Positive/Negative Words per Page")
 }
 
 single_word_cloud <- function(books_tidied, remove_words = NULL, number_of_words = 100) {
   books_tidied %>%
     filter(!word %in% remove_words) %>%
     count(word) %>%
-    with(wordcloud(word, n, max.words = number_of_words))
+    with(wordcloud(word, n, max.words = number_of_words, colors=brewer.pal(8,"Dark2")))
 }

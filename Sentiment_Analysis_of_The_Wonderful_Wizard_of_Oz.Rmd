@@ -1,0 +1,16 @@
+---
+title: "Sentiment Analysis of The Wonderful Wizard of Oz"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(fig.width = 10, fig.height = 8, fig.retina = 2)
+library(tidyverse)
+library(rmarkdown)
+library(svglite)
+library(knitr)
+source("R/Single_Word_Analysis.R")
+```
+
+I just posted Text Mining The Wonderful Wizard of Oz Series and shared it on /r/dataisbeautiful. Okay results, but I failed to target the audience. I want to move past the process and instead come up with an actual solution.

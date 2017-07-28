@@ -1,0 +1,200 @@
+---
+title: "Text Mining The Wonderful Wizard of Oz Series"
+output: 
+  md_document:
+      variant: markdown_phpextra+backtick_code_blocks
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(fig.width = 10, fig.height = 8, fig.retina = 2)
+library(tidyverse)
+library(rmarkdown)
+library(svglite)
+library(knitr)
+source("R/Single_Word_Analysis.R")
+```
+
+A couple weeks ago I came across [Text Mining with R](http://tidytextmining.com) by Julia Silge and David Robinson. Since I played with latent semantic analysis a few years ago, I thought it would be fun to learn about text mining. Because I wanted to do more than just work through the examples in the book, I decided to apply the principals to [_The Wonderful Wizard of Oz_](https://en.wikipedia.org/wiki/List_of_Oz_books) series. As such, this will be the first of several posts where I apply the concepts from Text Mining with R to the Oz series. Hope you enjoy!
+
+# Text Mining the Oz Series
+
+Thanksfully, I was able to download all the Oz books from Project Gutenberg and was surprised to learn that the author, L. Frank Baum, had written a total of 14 Oz books. The table below lists each book, the year it was published, the estimated number of pages, total words in the book, and the remaining words after common words (such as "the", "and", "a", etc.) have been removed.[^1]
+
+[^1]: Commonly removed words are also known as stop word, which I will use throughout the rest of these posts.
+
+```{r "Downloading from Project Gutenberg", cache = TRUE, echo = FALSE, message = FALSE, warning = FALSE}
+oz <- gather_gutenberg_books(
+  c(55, 55, 420, 419, 517, 486, 485, 955, 957, 956, 25581, 24459, 30852, 961),
+  c("The Wonderful Wizard of Oz", "The Marvelous Land of Oz", "Dorothy and the Wizard", "The Magic of Oz", "The Emerald City of Oz", "Ozma of Oz", "The Road to Oz", "The Patchwork Girl of Oz", "The Scarecrow of Oz", "Tik-Tok of Oz", "Rinkitink in Oz", "The Lost Princess of Oz", "The Tin Woodman of Oz", "Glinda of Oz"))
+```
+
+```{r "Unnest and Show list of Oz Books", cache = TRUE, echo = FALSE, message = FALSE, warning = FALSE}
+oz1 <- single_word_unnested_all_words(oz)
+oz2 <- single_word_unnested_stopwords(oz)
+
+
+oz_published <- tibble(
+  book = c("The Wonderful Wizard of Oz", "The Marvelous Land of Oz", "Ozma of Oz", "Dorothy and the Wizard", "The Road to Oz", "The Emerald City of Oz", "The Patchwork Girl of Oz", "Tik-Tok of Oz", "The Scarecrow of Oz", "Rinkitink in Oz", "The Lost Princess of Oz", "The Tin Woodman of Oz", "The Magic of Oz", "Glinda of Oz"),
+  `year published` =c(1900, 1904, 1907, 1908, 1909,1910, 1913, 1914, 1915, 1916, 1917, 1918, 1919, 1920))
+
+oz_summary1 <- oz1 %>%
+  group_by(book) %>%
+  summarise(`est. number of pages` = ceiling(max(linenumber)/40), `total words` = sum(n))
+
+oz_summary2 <- oz2 %>%
+  group_by(book) %>%
+  count(book, word) %>%
+  summarize(`remaining words` = sum(n))
+
+oz_summary <- left_join(oz_published, oz_summary1)
+oz_summary <- left_join(oz_summary, oz_summary2)
+
+oz_summary %>%
+  rbind(c("TOTAL WORDS", "", "", sum(oz_summary$`total words`), sum(oz_summary$`remaining words`))) %>%
+  mutate(`total words`= format(as.numeric(`total words`), big.mark = ","),
+         `remaining words` = format(as.numeric(`remaining words`), big.mark = ",")) %>%
+  kable(align = c("l", rep("c", 4)), caption = "Table: The Wizard of Oz Series")
+```
+
+## Comparison of Total Words vs Stop Words
+
+I'll admit that I was a little suprised seeing a total of 630,053 words in the Oz series. Even after pulling out the common words, or stop words, there are still 215,901 words left. I figure it is helpful to show the top 32 words in these two sets of data just to get an idea of the benefits of pulling out stop words. 
+
+```{r "Table of top 32 words", cache = TRUE, echo = FALSE, message = FALSE, fig.height = 5}
+oz1_top_5 <- oz1 %>%
+  group_by(word) %>%
+  summarize(`total` = sum(n)) %>%
+  top_n(32) %>%
+  mutate(type = "total words")
+
+oz2_top_5 <- oz2 %>%
+  group_by(word) %>%
+  count(word) %>%
+  summarize(`total` = sum(n)) %>%
+  top_n(32) %>%
+  mutate(type = "remaining words")
+
+oz_top_5 <- rbind(oz1_top_5, oz2_top_5) 
+oz_top_5 <- oz_top_5 %>%
+  ungroup() %>%
+  arrange(type, total) %>%
+  mutate(order = row_number(), type = factor(type, levels = c("total words","remaining words")))
+
+oz_top_5 %>%
+  ggplot(aes(order, total, fill = type)) +
+  geom_col(show.legend = F) +
+  facet_wrap(~type, ncol = 2, scales = "free") +
+  scale_x_continuous(
+    breaks = oz_top_5$order,
+    labels = oz_top_5$word,
+    expand = c(0,0)
+  ) +
+  labs(title = "Comparison of Top 32 Total Words vs Remaining Words", caption = "http://www.marcusbevans.com", y = "Occurances", x = "Words") +
+  coord_flip()
+```
+
+I specifically picked the top 32 words because this is the first time I see Dorothy in both the total words and remaining words. This simple example highlights the scale of how many, and how common the stops words are in the Oz series. The next two charts also highlight the differences. The first chart shows the total words and the second chart shows the remaining words. Both charts follw the trend that the most used words are on the left and quickly drop off to the less used words. While both charts follow a similar pattern, notice that the total words chart starts at over 40,000 occurances while the remaining words is just under 3,000.
+
+```{r "Total Words by Rank in Oz Series", cache = TRUE, echo = FALSE, message = FALSE, fig.height = 3, warning = FALSE}
+oz1 %>% 
+  group_by(word) %>% 
+  summarize(n = sum(n)) %>% 
+  mutate(rank = dense_rank(desc(n))) %>%
+    ggplot(aes(rank, n)) +
+  geom_line() +
+  labs(x = "Word Populatity by Rank", 
+       y = "Number of Times Word Appears", 
+       title = "Total Words by Rank in Oz Series", 
+       caption = "http://www.marcusbevans.com") +
+  theme_bw()
+```
+
+```{r "Remaining Words by Rank in Oz Series", cache = TRUE, echo = FALSE, message = FALSE, fig.height = 3, warning = FALSE}
+oz2 %>% 
+  group_by(word) %>% 
+  count(word) %>%
+  summarize(n = sum(n)) %>% 
+  mutate(rank = dense_rank(desc(n))) %>%
+    ggplot(aes(rank, n)) +
+  geom_line() +
+  labs(x = "Word Populatity by Rank", 
+       y = "Number of Times Word Appears", 
+       title = "Remaining Words by Rank in Oz Series", 
+       caption = "http://www.marcusbevans.com") +
+  theme_bw()
+```
+
+```{r "Histogram of Oz Series", cache = TRUE, echo = FALSE, message = FALSE, fig.height = 5, warning = FALSE, eval = FALSE}
+
+total_oz <- oz1 %>% group_by(word) %>% summarise(`total words` = sum(n))
+remaining_oz <- oz2 %>% group_by(word) %>% count(word) %>% summarise(`remaining words` = sum(n))
+  
+left_join(x = total_oz, y = remaining_oz, by = "word") %>%
+  gather(type, n, -word) %>%
+  mutate(rank = dense_rank(desc(n)), type = factor(type, levels = c("total words","remaining words"))) %>%
+  arrange(desc(type)) %>%
+  ggplot(aes(rank, n, color = type)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~type, ncol = 1) +
+  labs(x = "Word Populatity by Rank", 
+       y = "Number of Times Word Appears", 
+       title = "Remaining Words by Rank in Oz Series", 
+       caption = "http://www.marcusbevans.com") +
+  theme_bw()
+```
+
+## Zipf's Law
+
+In 1935 George Kingsley Zipf, proposed the rule [Zipf's Law](https://simple.wikipedia.org/wiki/Zipf%27s_law). This rule states that with a large set of words, the frequency of any word is inversely proportional to its rank in the frequency table. The formula, word number N has a frequency of 1/N. This is an interesting rule, and is fairly consisent across multiple languages. So I decided I would go ahead and include a chart of Zipf's Law applied to the Oz series.
+
+```{r "Oz Series Zipf\'s Law on Total Words", echo = FALSE, message = FALSE, cache = TRUE}
+oz1 %>%
+  mutate(rank = row_number(),
+         `term frequency` = n/total) %>%
+  ggplot(aes(rank, `term frequency`, color = book)) +
+  geom_line(size = 1.1, alpha = 0.8) +
+  scale_x_continuous(trans = "log2") +
+  scale_y_continuous(trans = "log2") +
+  labs(x = "Rank of Each Word", 
+       y = "Frequency of Each Word", 
+       title = "Zipf's Law on Total Words in Oz Series", 
+       caption = "http://www.marcusbevans.com")
+```
+
+## Comparing the Remaining Words
+
+While the charts above provide some insights about the Oz series, I really want to look at the remaining words. The following two charts provide that breakdown. The first chart shows the top 25 words in all the books, while the second chart shows the top 5 works within each book. A quick review shows that the top remaining words are often proper nouns. For example, Dorothy, Oz, Ozma, and Scarecrow are the most common words in the first chart; while additional proper nouns, such as Zeb, Rinkitink, Jim, or Nimmie, show up in the second chart.
+
+```{r "Top 25 Words", fig.height = 6, echo = FALSE, fig.keep = TRUE, message = FALSE, fig.height = 5}
+
+single_word_review_one_chart(oz2, show_top_words = 25, chart_title = "Top 25 Remaining Words in Oz Series", chart_caption = "http://www.marcusbevans.com") + theme_bw() 
+```
+
+```{r "Top 5 Words per Book", fig.height = 8, echo = FALSE, fig.keep = TRUE, message = FALSE}
+single_word_review(oz2, show_top_words = 5, chart_title = "Top 5 Remaining Words in Oz Series", chart_caption = "http://www.marcusbevans.com")
+```
+
+## Word Cloud
+
+Because the post is getting pretty long, I think I'll close up with a basic word cloud of the top 100 remaining words. It makes for a fun visualization.
+
+```{r "Word Cloud of Oz Series", message = FALSE, echo = FALSE, fig.height = 4}
+set.seed(2017)
+single_word_cloud(oz2)
+```
+
+## To Be Continued
+
+I think this is a good starting point for my first text mining post. There are a couple other text mining concepts I still want to work through and so expect to see another post in the near future!
+
+```{r sentimental_analysis_cleaning, eval = FALSE, echo = FALSE}
+remove_oz_words = c("cowardly", "wicked", "witch", "magic", "buggy")
+
+single_word_sentiment_cleaning(oz, remove_words = remove_oz_words, words_shown = 5, number_of_columns = 3)
+```
+
+```{r sentimental_analysis, fig.height = 10, eval = FALSE, echo = FALSE}
+single_word_sentiment(oz, number_of_columns = 3, remove_words = remove_oz_words)
+```
+
+

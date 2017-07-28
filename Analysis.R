@@ -9,6 +9,9 @@ single_word_cloud(peter)
 
 # Bible
 bible <- gather_gutenberg_books(10, "King James Version of Bible")
+
+
+
 bible <- single_word_unnested(bible)
 single_word_review(bible)
 single_word_sentiment_cleaning(bible, words_shown = 50)

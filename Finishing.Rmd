@@ -1,0 +1,163 @@
+---
+title: "Text Mining in R"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 10, fig.height = 8, fig.retina = 2)
+library(tidyverse)
+library(rmarkdown)
+library(tidytext)
+library(igraph)
+library(ggraph)
+source("R/Single_Word_Analysis.R")
+```
+
+#July 17, 2017
+
+A couple weeks ago I started working on this project and got really excited. Then, about 2 weeks into it and then the momentum died and I stoppe working on it. As a side project, it has been fun, but once I finished reading through the book, the ideas and concepts lost their excitment. So here I am again, picking it up to finish it. I'm going to draw from the tools I build up before, but work on finishing one collection of books. In this case, I'm selecting the Wizard of Oz series.
+
+It helps because I can build off the work in `OZ Series.Rmd`.
+
+```{r "Download Oz Series from Project Gutenberg", cache = TRUE, message = FALSE}
+oz <- gather_gutenberg_books(
+  c(55, 55, 420, 419, 517, 486, 485, 955, 957, 956, 25581, 24459, 30852, 961),
+  c("The Wonderful Wizard of Oz", "The Marvelous Land of Oz", "Dorothy and the Wizard", "The Magic of Oz", "The Emerald City of Oz", "Ozma of Oz", "The Road to Oz", "The Patchwork Girl of Oz", "The Scarecrow of Oz", "Tik-Tok of Oz", "Rinkitink in Oz", "The Lost Princess of Oz", "The Tin Woodman of Oz", "Glinda of Oz"))
+```
+
+##Oz Series Sentiment Analysis
+
+I built a couple tools to highlight top words and perform a sentament analysis. For this tool I just want to be able to show the work and go from there.
+
+```{r "Oz Series Sentiment Analysis", message = FALSE, cache = TRUE}
+oz_unnested_stopwords <- single_word_unnested_stopwords(oz)
+remove_oz_words = c("cowardly", "wicked", "witch", "magic", "buggy")
+single_word_sentiment(oz_unnested_stopwords, number_of_columns = 3, remove_words = remove_oz_words, book_name = "Oz Series - ") + theme_bw()
+```
+
+A couple things stand out when looking at the sentiment analysis. First, _The Patchwork Girl of Oz_ is the longest book, while the two shortest books are _The Wonderful Wizard of Oz_ and _The Marvelous Land of Oz_.^[Looking at how close the results are for _The Wonderful Wizard of Oz_ and _The Marvelous Land of Oz_ makes me wonder if these two books are really any different. Something to checkout on the Project Gutenberg.] _Ozma of Oz_, _The Emerald City of Oz_, and _The Lost Princess of Oz_ seem to have the most consistent pattern, while _The Road to Oz_ has the greatest number of positive pages. 
+
+Overall, most of the books have a good mix of positive and negative pages. I believe this would make sense because the books I've read seem to be mini-adventure stories with one major conflict and several mini-conflicts throughout the story.
+
+##Zipf's Law
+
+"Zipf’s law states that the frequency that a word appears is inversely proportional to its rank."^[David Robinson, Julia Silge, _Text Mining in R_, Chapter 3, 2017. (Hooray for not having to care about propper citation!)]
+
+```{r "Oz Series Zipf\'s Law", message = FALSE, cache = TRUE}
+oz_unnested_all_words <- single_word_unnested_all_words(oz)
+
+oz_unnested_all_words %>%
+  group_by(book) %>%
+  mutate(rank = row_number(),
+         `term frequency` = n/total) %>%
+  ggplot(aes(rank, `term frequency`, color = book)) +
+  geom_line(size = 1.1, alpha = 0.8) +
+  scale_x_log10() +
+  scale_y_log10()
+```
+
+That looks off. It looks like stairs. I'm not sure what this means, if it means anything. It is an odd chart. Looking at the Jane Austen chart, I can see some stars near the bottom left of the chart. It is just odd to see the stair's so pronounce in this chart.
+
+## Next Plans
+
+I want to quickly but together a tf-idf chart. Most just a quick test of the concept. I really want to move into analizing 2+ words and topic modeling. Once I've done that I'll post the final visualizations.
+
+# tf-idf
+
+I've run the analysis but I'm not at all happy with the results. I end up with some odd ball words that don't make sense. Unlike the Jane Austen examples, which brought out the proper names, this example pulls out short gibberish words.
+
+I'll need to come back go it to see if I can make sense of it all.
+
+```{r "tf-idf Anslysis", message = FALSE, cache = TRUE, eval = FALSE}
+oz_tf_idf <- oz_unnested_all_words %>%
+  bind_tf_idf(word, book, n)
+  
+oz_tf_idf %>%
+  arrange(desc(tf_idf)) %>%
+  mutate(word = factor(word, levels = rev(unique(word)))) %>%
+  group_by(book) %>%
+  top_n(1) %>%
+  ungroup(book) %>%
+  ggplot(aes(word, tf_idf, fill = book)) +
+  geom_col(show.legend = FALSE) +
+  labs(x = NULL, y = "tf-idf") +
+  facet_wrap(~book, ncol = 2, scales = "free") +
+  coord_flip()
+```
+
+# N-grams
+
+This is actually an area I'm excited to play with. The idea is to move from a single word analysis to a multi-word analysis. There are some cool relationship diagrams that can be shown here so I'm excited to see how they play out.
+
+```{r "Oz N-grams", message = FALSE, cache = TRUE, fig.height = 10}
+oz_bigrams <- oz %>%
+  unnest_tokens(bigram, text, token = "ngrams", n = 2)
+
+oz_bigrams_separated <- oz_bigrams %>%
+  separate(bigram, c("word1", "word2"), sep = " ")
+
+oz_bigrams_filter <- oz_bigrams_separated %>%
+  filter(!word1 %in% stop_words$word) %>%
+  filter(!word2 %in% stop_words$word)
+
+
+oz_bigrams_count <- oz_bigrams_filter %>%
+  count(word1, word2, sort = TRUE)
+
+oz_bigrams_unite <- oz_bigrams_count %>%
+  unite(bigram, word1, word2, sep = " ")
+
+oz_bigrams <- left_join(oz_bigrams_unite, oz_bigrams)
+
+oz_bigrams_tf_idf <- oz_bigrams %>%
+  count(book, bigram) %>%
+  mutate(n = nn) %>%
+  bind_tf_idf(bigram, book, n) %>%
+  arrange(desc(tf_idf))
+
+oz_bigrams_tf_idf <- oz_bigrams_tf_idf %>%
+  arrange(desc(tf_idf)) %>%
+  mutate(word = factor(bigram, levels = rev(unique(bigram)))) %>%
+  group_by(book) %>%
+  top_n(7) %>%
+  ungroup(book)
+
+oz_prepare_for_ggplot <- oz_bigrams_tf_idf %>%
+    group_by(book) %>%
+    top_n(15) %>%
+    ungroup() %>%
+    arrange(book, tf_idf) %>%
+    mutate(order = row_number())
+
+oz_prepare_for_ggplot %>%
+  ggplot(aes(order, tf_idf, fill = book)) +
+    geom_col(show.legend = F) +
+    xlab("Bigram") +
+    ylab("Occurrances") +
+    facet_wrap(~ book, ncol = 2, scales = "free") +
+    scale_x_continuous(
+      breaks = oz_prepare_for_ggplot$order,
+      labels = oz_prepare_for_ggplot$bigram,
+      expand = c(0,0)
+    ) +
+    coord_flip()
+```
+
+Look at the bigrams helps make some sense of the odd tf-idf results. It looks like some of the odd words that tf-idf pulled out are parts of some odd names. It is interesting to note that Dorothy does not popup in any of these charts. In some sense it make sense because, as far as I can remember, she is only called by her first name.
+
+```{r "N-grams with the igraph package", message = FALSE, cache = TRUE}
+oz_bigrams_graph <- oz_bigrams_count %>%
+  filter (n > 25) %>%
+  graph_from_data_frame()
+
+set.seed(2016)
+
+a <- grid::arrow(type = "closed", length = unit(.15, "inches"))
+
+ggraph(oz_bigrams_graph, layout = "fr") +
+  geom_edge_link(aes(edge_alpha = n), show.legend = FALSE,
+                 arrow = a, end_cap = circle(.07, 'inches')) +
+  geom_node_point(color = "lightblue", size = 5) +
+  geom_node_text(aes(label = name), vjust = 1, hjust = 1) +
+  theme_void()
+```
