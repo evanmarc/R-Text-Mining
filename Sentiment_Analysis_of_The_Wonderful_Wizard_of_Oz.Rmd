@@ -1,16 +1,291 @@
 ---
-title: "Sentiment Analysis of The Wonderful Wizard of Oz"
+title: "Text Mining _The Wonderful Wizard of Oz_"
 output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
-knitr::opts_chunk$set(fig.width = 10, fig.height = 8, fig.retina = 2)
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, cache = TRUE)
+knitr::opts_chunk$set(fig.width = 4.5, fig.height = 4.5, fig.retina = 2)
 library(tidyverse)
 library(rmarkdown)
 library(svglite)
 library(knitr)
+library(png)
+library(pBrackets)
+library(tidytext)
+library(igraph)
+library(ggraph)
 source("R/Single_Word_Analysis.R")
 ```
 
-I just posted Text Mining The Wonderful Wizard of Oz Series and shared it on /r/dataisbeautiful. Okay results, but I failed to target the audience. I want to move past the process and instead come up with an actual solution.
+
+This is the second posted about text mining The Wonderful Wizard of Oz Series. In this post I decided to focus on just one book, _The Wonderful Wizard of Oz_. 
+
+
+
+```{r "Prepare Dataset", cache = TRUE}
+ww_oz <- gather_gutenberg_books(55, "The Wonderful Wizard of Oz")
+
+ww_oz <- ww_oz[-c(7:39),]
+
+ww_oz <- ww_oz[-34,]
+
+clean_oz <- ww_oz %>%
+  mutate(linenumber = cumsum(str_detect(text, "")),
+         chapter = cumsum(str_detect(text, regex("^[0-9]+.", ignore_case = T))),
+         page = linenumber %/% 37)
+
+clean_oz %>%
+  write_csv("Output/ww_clean_oz.csv")
+
+unnested_oz <- clean_oz %>%
+  unnest_tokens(word, text)
+
+unnested_oz_stopwords <- unnested_oz %>%
+  anti_join(stop_words)
+
+unnested_oz %>%
+  write_csv("Output/ww_unnested_oz.csv")
+```
+
+```{r "Single Word Charts", fig.align = 'left', out.extra='style="float:left"'}
+single_word_cloud(unnested_oz_stopwords)
+
+prepare_for_sort <- unnested_oz_stopwords %>%
+    group_by(book) %>%
+    count(word)
+  
+prepare_for_ggplot <- prepare_for_sort %>%
+    group_by(book) %>%
+    top_n(20) %>%
+    ungroup() %>%
+    arrange(book, n) %>%
+    mutate(order = row_number())
+  
+  ggplot(prepare_for_ggplot, aes(order, n, fill = book)) +
+    geom_col(show.legend = F) +
+    facet_wrap(~ book, ncol = 1, scales = "free_y") +
+    scale_x_continuous(
+      breaks = prepare_for_ggplot$order,
+      labels = prepare_for_ggplot$word,
+      expand = c(0,0)
+    ) +
+    coord_flip() +
+    labs(y = "Total Occurances", x = "Words") +
+    theme_bw()
+```
+
+It is pretty clear that the character's names are the most common words in _The Wonderful Wizard of Oz_. The top seven words are proper nouns (e.g., Dorothey, Scarecrow, Tin Woodman, Lion, Oz, and Witch). One of the interesting things we see looking at the top 20 words, is the common reference to the head, heart, and brains. This makes sense because the Scarecrow has no brains in his head and the Tin Woodman has no heart.
+
+```{r, "Bigram review", out.extra='style="float:left"', warning = FALSE}
+bigram_oz <- clean_oz %>%
+  unnest_tokens(bigram, text, token = "ngrams", n = 2)
+
+bigram_clean <- bigram_oz %>%
+  separate(bigram, c("word1", "word2"), sep = " ") %>%
+  filter(!word1 %in% stop_words$word) %>%
+  filter(!word2 %in% stop_words$word) %>%
+  count(word1, word2, sort = TRUE) %>%
+  unite(bigram, word1, word2, sep = " ")
+
+bigram_oz <- left_join(bigram_clean, bigram_oz)
+
+chart_oz <- bigram_oz %>%
+  group_by(bigram) %>% 
+  summarize(n = mean(n)) %>%
+  top_n(20) %>%
+  ungroup() %>%
+  arrange(n) %>%
+  mutate(order = row_number())
+
+chart_oz %>%  ggplot(aes(order, n, fill = "pink")) +
+  geom_col(show.legend = F) +
+  scale_x_continuous(
+    breaks = chart_oz$order,
+    labels = chart_oz$bigram,
+    expand = c(0,0)
+  ) +
+  coord_flip() +
+  labs(title = "bigrams", caption = "http://www.marcusbevans.com", y = "Total Occurances", x = "Words") +
+  theme_bw()
+```
+
+
+```{r "ggraph of Bigrams", warning = FALSE, fig.height = 4, fig.width = 10}
+oz_bigrams_graph <- bigram_clean %>%
+  group_by(bigram) %>%
+  summarize(n = min(n)) %>%
+  separate(bigram, c("word1", "word2")) %>%
+  filter(n > 2) %>%
+  graph_from_data_frame()
+
+set.seed(2017)
+
+a <- grid::arrow(type = "closed", length = unit(.05, "inches"))
+
+ggraph(oz_bigrams_graph, layout = "dh") +
+  geom_node_point(color = "lightblue", size = 3) +
+  geom_edge_link(aes(edge_alpha = n), show.legend = FALSE,
+                 arrow = a, end_cap = circle(.04, 'inches')) +
+  geom_node_text(aes(label = name), vjust = .5, hjust = .5) +
+  theme_graph()
+  
+```
+
+The last big part is preparing the sentiment data for D3. I've run this report when the stop words were excluded, but I kept coming up with a problems showing the correct chapters. So this time, I'm going to try it again and see what the result looks like.
+
+```{r "sentiment analysis cleaning", eval = TRUE, echo = TRUE}
+oz_removed <- c("wicked")
+
+single_word_sentiment_cleaning(unnested_oz, number_of_columns = 1, remove_words = oz_removed, words_shown = 25)
+```
+
+```{r "sentiment charting", eval = TRUE, echo = TRUE}
+d3_oz <- unnested_oz %>%
+  inner_join(get_sentiments("bing")) %>%
+  filter(!word %in% oz_removed) %>%
+  count(book, sentiment, page) %>%
+  spread(sentiment, n, fill = 0) %>%
+  mutate(sentiment = positive - negative)
+
+charting_oz <- left_join(d3_oz, unnested_oz)
+
+charting_oz %>%  write_csv("Output/ww_sentiment.csv")
+```
+
+
+```{r "sentiment charting 2", eval = TRUE, echo = TRUE}
+d3_oz <- unnested_oz %>%
+  inner_join(get_sentiments("bing")) %>%
+  filter(!word %in% oz_removed) %>%
+  count(book, sentiment, page) %>%
+  spread(sentiment, n, fill = 0) %>%
+  mutate(sentiment = positive - negative)
+
+charting_oz <- left_join(d3_oz, unnested_oz)
+
+charting_oz %>%  write_csv("Output/ww_sentiment.csv")
+
+mark_section <- function(xstart, xfinish, ystart, yfinish, text) {
+  geom_segment(x = xstart, xend = xfinish, y = ystart, yend = yfinish, size = .25, linetype = 1) +
+  geom_segment(x = xstart, xend = xstart, y = ystart, yend = yfinish, size = .25, linetype = 1) +
+  geom_segment(x = xfinish, xend = xfinish, y = ystart, yend = yfinish, size = .25, linetype = 1) +
+  annotate("text", x = xstart, y = ystart + .5, label = text, angle = 0, vjust = 1, hjust = 0, size = 3)
+}
+
+charting_oz %>%
+  group_by(page) %>%
+  summarize(sentiment = min(sentiment)) %>%
+  ggplot(aes(x = page, y = sentiment, fill = sentiment, legend = FALSE)) +
+  geom_col() +
+  labs(fill = "Legend: Chapters", 
+       title = "The Wizard of OZ",
+       subtitle = "Sentiment Analysis and Overview",
+       caption = "http://www.marcusbevans.com",
+       x = "Pages in Book",
+       y = "Total Sentiment per Page") +
+  scale_fill_gradient2(high = "orange", low = "darkred", midpoint = 0, mid = "pink") +
+  theme_bw() +
+  theme(legend.position = "none") +
+  ylim(-23,28)
+
+ggsave("Output/ww_sentiment_v2.png")
+  
+ggsave("Output/ww_sentiment_v2.svg")
+```
+
+Couple quick questions:
+
+1. What happened on the high and low pages?
+1. How do the actual chapters rate?
+1. How many characters should I focus on?
+1. How many stories should I focus on?
+1. Is it worth it to add pictures from the books?
+1. What about a general map of Oz?
+
+Again, I want to complete a quick textual analysis of the book and then move on to another book.
+
+# 4 August 2017
+
+I'm looking at the information I've been able to product and am not very happy with the results. So I'm going to clean up the old code and see if I can turn a couple things off. 
+
+Here is a word picture of the end product. I have the bing sentiment analysis of _The Wonderful Wizard of Oz_ and a div that shows the text from the book for the page selected. The positive words will be colored green and negative words will be colored red. I won't worry about bigrams for this chart because I want to finish the book first. I am planning on using the D3 library to make the chart interactive.
+
+I'll keep the code for downloading the book and adding the page and chapter details.
+
+# 15 August 2017
+
+I've been working on this for too long and am not happy with the results. I have the sentiment analysis. The key points are:
+
+1. The book is generally positive
+    1. The lowest value is -18
+    1. The highest value is 22
+    1. The mean is 3.181
+    1. The sum of all the values is 299
+1. The saddest points in the book are:
+    1. Dorothy first arrives in Oz and wants to return home
+    1. Dorothy and Scarecrow enter the woods
+    1. Dorothy is enslaved by the Wicked Witch of the West
+    1. Dorothy is traveling to Glinda and is attacked by trees
+1. The happest points in the book are:
+    1. The beginnings of her travels to the Emerald City
+    1. Approaching and entering the Emerald City
+    1. Returning from killing the Wicked Witch of the West
+    1. Preparing to leave with the Wizard of Oz in a hot air balloon
+    1. Meeting Glinda and returning to Kansas
+
+There are basically four main points to _The Wizard of Oz_. They are:
+
+1. Dorothy arrives and travels to the Emerald City to meet the Wizard
+1. Dorothy travels to, is enslaved, and kills the Wicked Witch of the West
+1. Dorothy returns to the Emerald City and fails to return to Kansas with the Wizard
+1. Dorothy travels to Glinda the Good Witch for help and returns home to Kansas
+
+The saddest moments are during Dorothy's enslavement with the Wicked Witch of the West.
+Dorothy's happiest moments are returning to the Wizard of Oz and making preparation to return to Kansas on the hot air balloon.
+
+Should I worry about adding anything else? I think the simple answer is no. I just double check _Text Mining in R_ and see that there really isn't a lot more to add. The remaining strategies are focused on comparing multiple documents. Since I am only looking at one book it may not be that useful.
+
+I may be able to use the same strategy to compare the Oz seriest. So I guess the main question is what would it take to create the postable chart.
+
+Load the chart onto the iPad Pro and add the some simple annotations
+
+```{r "Sentiment with curley brackets"}
+
+bracketsGrob <- function(...){
+l <- list(...)
+e <- new.env()
+e$l <- l
+  grid:::recordGrob(  {
+    do.call(grid.brackets, l)
+  }, e)
+}
+
+# by1 = .1
+by1 = .45
+
+b1 <- bracketsGrob(.51, by1, .04, by1, h=0.05, lwd=2, col="black")
+b2 <- bracketsGrob(.61, by1, 0.51, by1, h=0.05,  lwd=2, col="black")
+b3 <- bracketsGrob(.82, by1, 0.61, by1, h=0.05,  lwd=2, col="black")
+b4 <- bracketsGrob(.96, by1, .82, by1, h=0.05,  lwd=2, col="black")
+
+charting_oz %>%
+  group_by(page) %>%
+  summarize(sentiment = min(sentiment)) %>%
+  ggplot(aes(x = page, y = sentiment, fill = sentiment, legend = FALSE)) +
+  geom_col() +
+  labs(fill = "Legend: Chapters", 
+       title = "The Wizard of OZ",
+       subtitle = "Sentiment Analysis and Overview",
+       caption = "http://www.marcusbevans.com",
+       x = "Pages in Book",
+       y = "Total Sentiment per Page") +
+  scale_fill_gradient2(high = "orange", low = "darkred", midpoint = 0, mid = "pink") +
+  theme_bw() +
+  theme(legend.position = "none") +
+  annotation_custom(b1) + 
+  annotation_custom(b2) +
+  annotation_custom(b3) +
+  annotation_custom(b4)
+```
+

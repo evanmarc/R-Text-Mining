@@ -150,7 +150,7 @@ oz_bigrams_graph <- oz_bigrams_count %>%
   filter (n > 25) %>%
   graph_from_data_frame()
 
-set.seed(2016)
+oz_bigrams_count
 
 a <- grid::arrow(type = "closed", length = unit(.15, "inches"))
 

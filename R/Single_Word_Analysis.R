@@ -50,7 +50,7 @@ single_word_unnested_stopwords <- function(gutenberg_books) {
   return(books_tidied)
 }
 
-single_word_review <- function(books_tidied, show_top_words = 15, chart_title = NULL, chart_caption = NULL, number_of_columns = 2) {
+single_word_review <- function(books_tidied, show_top_words = 15, chart_title = NULL, chart_caption = NULL, number_of_columns = 2, facet_by = book) {
   prepare_for_sort <- books_tidied %>%
     group_by(book) %>%
     count(word)
@@ -64,7 +64,7 @@ single_word_review <- function(books_tidied, show_top_words = 15, chart_title = 
   
   books_charted <- ggplot(prepare_for_ggplot, aes(order, n, fill = book)) +
     geom_col(show.legend = F) +
-    facet_wrap(~ book, ncol = number_of_columns, scales = "free_y") +
+    facet_wrap(~ facet_by, ncol = number_of_columns, scales = "free_y") +
     scale_x_continuous(
       breaks = prepare_for_ggplot$order,
       labels = prepare_for_ggplot$word,
